@@ -1,19 +1,10 @@
-import os
 from urllib.parse import parse_qs, urlparse
 
 import pandas as pd
 import requests
-from dotenv import load_dotenv
 
 import src.ssl_patch  # noqa: F401 — aplica patch SSL para rede corporativa
-
-load_dotenv()
-
-DEVELOPER_TOKEN = os.getenv("GOOGLE_DEVELOPER_TOKEN")
-CLIENT_ID = os.getenv("GOOGLE_CLIENT_ID")
-CLIENT_SECRET = os.getenv("GOOGLE_CLIENT_SECRET")
-REFRESH_TOKEN = os.getenv("GOOGLE_REFRESH_TOKEN")
-LOGIN_CUSTOMER_ID = os.getenv("GOOGLE_LOGIN_CUSTOMER_ID")
+from src.config import get
 
 API_VERSION = "v19"
 BASE_URL = f"https://googleads.googleapis.com/{API_VERSION}"
@@ -24,9 +15,9 @@ def _get_access_token() -> str:
         "https://oauth2.googleapis.com/token",
         data={
             "grant_type": "refresh_token",
-            "refresh_token": REFRESH_TOKEN,
-            "client_id": CLIENT_ID,
-            "client_secret": CLIENT_SECRET,
+            "refresh_token": get("GOOGLE_REFRESH_TOKEN"),
+            "client_id": get("GOOGLE_CLIENT_ID"),
+            "client_secret": get("GOOGLE_CLIENT_SECRET"),
         },
     )
     resp.raise_for_status()
@@ -36,8 +27,8 @@ def _get_access_token() -> str:
 def _headers(access_token: str) -> dict:
     return {
         "Authorization": f"Bearer {access_token}",
-        "developer-token": DEVELOPER_TOKEN,
-        "login-customer-id": LOGIN_CUSTOMER_ID,
+        "developer-token": get("GOOGLE_DEVELOPER_TOKEN"),
+        "login-customer-id": get("GOOGLE_LOGIN_CUSTOMER_ID"),
     }
 
 

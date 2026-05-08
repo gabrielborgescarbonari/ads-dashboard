@@ -1,17 +1,12 @@
-import os
 from urllib.parse import parse_qs
 
 import pandas as pd
 import requests
-from dotenv import load_dotenv
 
 import src.ssl_patch  # noqa: F401 — aplica patch SSL para rede corporativa
-
-load_dotenv()
+from src.config import get
 
 BASE_URL = "https://graph.facebook.com/v19.0"
-TOKEN = os.getenv("META_ACCESS_TOKEN")
-ACCOUNT_ID = os.getenv("META_ACCOUNT_ID")
 
 
 def fetch_insights(date_start: str, date_stop: str) -> pd.DataFrame:
@@ -21,7 +16,7 @@ def fetch_insights(date_start: str, date_stop: str) -> pd.DataFrame:
         "actions", "cost_per_action_type",
     ]
     params = {
-        "access_token": TOKEN,
+        "access_token": get("META_ACCESS_TOKEN"),
         "level": "ad",
         "fields": ",".join(fields),
         "time_range": f'{{"since":"{date_start}","until":"{date_stop}"}}',
@@ -30,7 +25,7 @@ def fetch_insights(date_start: str, date_stop: str) -> pd.DataFrame:
     }
 
     all_data = []
-    url = f"{BASE_URL}/act_{ACCOUNT_ID}/insights"
+    url = f"{BASE_URL}/act_{get('META_ACCOUNT_ID')}/insights"
     while url:
         resp = requests.get(url, params=params)
         resp.raise_for_status()
@@ -76,7 +71,7 @@ def _fetch_utms(ad_ids: list) -> dict:
         resp = requests.get(
             BASE_URL,
             params={
-                "access_token": TOKEN,
+                "access_token": get("META_ACCESS_TOKEN"),
                 "ids": ",".join(batch),
                 "fields": "creative{url_tags}",
             },
