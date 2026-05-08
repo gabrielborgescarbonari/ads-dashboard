@@ -1,0 +1,6 @@
+streamlit
+pandas
+requests
+python-dotenv
+google-ads
+google-auth-oauthlib
