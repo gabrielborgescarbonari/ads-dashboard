@@ -20,7 +20,8 @@ def _get_access_token() -> str:
             "client_secret": get("GOOGLE_CLIENT_SECRET"),
         },
     )
-    resp.raise_for_status()
+    if not resp.ok:
+        raise Exception(f"Token exchange falhou ({resp.status_code}): {resp.text}")
     return resp.json()["access_token"]
 
 
