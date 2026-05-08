@@ -18,6 +18,18 @@ import streamlit as st
 from src import google_ads_client, meta_ads
 
 st.set_page_config(page_title="Dashboard de Ads", layout="wide")
+
+with st.expander("Debug secrets (temporario)", expanded=False):
+    try:
+        keys = ["META_ACCESS_TOKEN", "META_ACCOUNT_ID", "GOOGLE_DEVELOPER_TOKEN",
+                "GOOGLE_CLIENT_ID", "GOOGLE_CLIENT_SECRET", "GOOGLE_REFRESH_TOKEN",
+                "GOOGLE_LOGIN_CUSTOMER_ID"]
+        for k in keys:
+            v = st.secrets.get(k, "NAO ENCONTRADO")
+            masked = str(v)[:6] + "..." + str(v)[-4:] if len(str(v)) > 10 else str(v)
+            st.text(f"{k}: {masked}")
+    except Exception as e:
+        st.error(f"Erro ao ler secrets: {e}")
 st.title("Dashboard de Ads — Google + Meta")
 
 # --- Sidebar ---
