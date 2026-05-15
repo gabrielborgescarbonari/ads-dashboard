@@ -6,14 +6,26 @@ import requests
 import src.ssl_patch  # noqa: F401 — aplica patch SSL para rede corporativa
 from src.config import get
 
-BASE_URL = "https://graph.facebook.com/v19.0"
+BASE_URL = "https://graph.facebook.com/v21.0"
+
+# Mapeamento: action_type da API -> nome da coluna na planilha
+CONVERSOES = {
+    "lead":                                             "Leads Formulario Meta",
+    "onsite_conversion.lead_grouped":                   "Leads Onsite (Meta)",
+    "onsite_conversion.messaging_conversation_started_7d": "Conversas WhatsApp",
+    "offsite_conversion.fb_pixel_custom":               "Pixel Custom Total",
+    "offsite_conversion.custom.1938219703285138":       "Custom: Trafego Qualif. PF",
+    "offsite_conversion.custom.532261749789705":        "Custom: Trafego Qualif. PME",
+    "offsite_conversion.custom.4081008808886661":       "Custom: LP Smart",
+    "offsite_conversion.custom.590267686699735":        "Custom: Notrelife",
+}
 
 
 def fetch_insights(date_start: str, date_stop: str) -> pd.DataFrame:
     fields = [
         "campaign_name", "adset_name", "ad_name", "ad_id",
         "spend", "impressions", "clicks", "ctr", "cpc", "cpm",
-        "actions", "cost_per_action_type",
+        "actions",
     ]
     params = {
         "access_token": get("META_ACCESS_TOKEN"),
@@ -44,6 +56,8 @@ def fetch_insights(date_start: str, date_stop: str) -> pd.DataFrame:
     for item in all_data:
         ad_id = item.get("ad_id", "")
         utm = utm_map.get(ad_id, _empty_utm())
+        conversoes = _extract_all_conversions(item.get("actions", []))
+
         rows.append({
             "plataforma": "Meta",
             "campanha": item.get("campaign_name", ""),
@@ -56,12 +70,20 @@ def fetch_insights(date_start: str, date_stop: str) -> pd.DataFrame:
             "ctr": float(item.get("ctr", 0)),
             "cpc": float(item.get("cpc", 0)) if item.get("cpc") else 0.0,
             "cpm": float(item.get("cpm", 0)),
-            "conversoes": _extract_conversions(item.get("actions", [])),
-            "cpa": _extract_cpa(item.get("cost_per_action_type", [])),
+            **conversoes,
             **utm,
         })
 
     return pd.DataFrame(rows)
+
+
+def _extract_all_conversions(actions: list) -> dict:
+    result = {col: 0.0 for col in CONVERSOES.values()}
+    for action in actions:
+        action_type = action.get("action_type", "")
+        if action_type in CONVERSOES:
+            result[CONVERSOES[action_type]] = float(action.get("value", 0))
+    return result
 
 
 def _fetch_utms(ad_ids: list) -> dict:
@@ -96,21 +118,3 @@ def _parse_utm(url_tags: str) -> dict:
 
 def _empty_utm() -> dict:
     return {k: "" for k in ("utm_source", "utm_medium", "utm_campaign", "utm_content", "utm_term")}
-
-
-def _extract_conversions(actions: list) -> float:
-    priority = ["offsite_conversion.fb_pixel_purchase", "lead", "onsite_web_purchase", "omni_purchase"]
-    for key in priority:
-        for action in actions:
-            if action.get("action_type") == key:
-                return float(action.get("value", 0))
-    return sum(float(a.get("value", 0)) for a in actions if "conversion" in a.get("action_type", ""))
-
-
-def _extract_cpa(cost_per_action: list) -> float:
-    priority = ["offsite_conversion.fb_pixel_purchase", "lead", "omni_purchase"]
-    for key in priority:
-        for item in cost_per_action:
-            if item.get("action_type") == key:
-                return float(item.get("value", 0))
-    return 0.0
