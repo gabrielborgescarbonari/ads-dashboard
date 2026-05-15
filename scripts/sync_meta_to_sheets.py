@@ -78,7 +78,7 @@ def main():
             return
         df_final = prepare_df(df_new).sort_values("Data", ascending=False)
         ws.clear()
-        ws.update([COLUNAS] + df_final.values.tolist())
+        ws.update([COLUNAS] + df_final.fillna("").values.tolist(), value_input_option="USER_ENTERED")
         print(f"Planilha reescrita com {len(df_final)} linhas.")
         return
 
@@ -105,7 +105,7 @@ def main():
     df_final = df_final.sort_values("Data", ascending=False)
 
     ws.clear()
-    ws.update([COLUNAS] + df_final.values.tolist())
+    ws.update([COLUNAS] + df_final.fillna("").values.tolist(), value_input_option="USER_ENTERED")
     print(f"Planilha atualizada: {len(df_new)} linhas novas, {len(df_final)} linhas no total.")
 
 
