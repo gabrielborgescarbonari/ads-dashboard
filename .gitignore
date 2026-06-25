@@ -5,3 +5,15 @@ __pycache__/
 venv/
 google-ads.yaml
 service_account.json
+deploy/
+sync.log
+
+# dados regeneraveis (cache, raw csv, planilhas, preview) - nao versionar
+data/
+
+# scripts: versiona so o nucleo do pipeline; analises pontuais ficam de fora
+scripts/*
+!scripts/dash_sync.py
+!scripts/dash_fetch.py
+!scripts/dash_derive.py
+!scripts/gerar_refresh_token.py
