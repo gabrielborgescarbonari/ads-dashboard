@@ -8,6 +8,7 @@ set "LOG=%~dp0sync.log"
 
 echo ===================== %date% %time% ===================== >> "%LOG%"
 C:\Python313\python.exe scripts\dash_sync.py --incremental 7 >> "%LOG%" 2>&1
+C:\Python313\python.exe scripts\fetch_ads_detail.py --incremental 7 >> "%LOG%" 2>&1
 C:\Python313\python.exe gerar_dashboard_midia.py >> "%LOG%" 2>&1
 git -C "%~dp0deploy" add -A >> "%LOG%" 2>&1
 git -C "%~dp0deploy" commit -m "Atualizacao automatica do dashboard" >> "%LOG%" 2>&1

@@ -8,8 +8,11 @@ Novas funcionalidades:
   Nomes sem taxonomia (< 6 segmentos) caem em "Sem <campo>".
 - Múltipla seleção em todos os filtros categóricos
 """
-import os, json
+import os, sys, json, csv
 import pandas as pd
+
+sys.path.insert(0, os.path.join(os.path.dirname(os.path.abspath(__file__)), 'scripts'))
+from dash_derive import derive_publico, derive_formato  # mesma derivacao do dash (paridade)
 
 # Fonte e saida podem ser sobrescritas por variavel de ambiente (sync via API usa o cache).
 XL_PATH  = os.environ.get('DASH_XL_PATH',  os.path.join(r'C:\Users\Usuario\Downloads', 'GROWTH_Estudo plataformas de mídia.xlsx'))
@@ -554,7 +557,7 @@ HTML = f"""<!DOCTYPE html>
   </div>
 
   <div class="table-section">
-    <div class="table-header"><h3>Campanhas</h3><div class="table-info" id="table-info">—</div></div>
+    <div class="table-header"><h3>Campanhas</h3><div class="table-info" id="table-info">—</div><button id="btn-export-ads" title="Exporta um CSV em nível de anúncio (data, plataforma, ad_id, campanha, conjunto, anúncio, investimento, leads), respeitando os filtros da tela." style="margin-left:auto;padding:8px 14px;border:0;border-radius:6px;background:#1e40af;color:#fff;font-size:13px;font-weight:600;cursor:pointer">Exportar anúncios (CSV)</button></div>
     <div class="chart-note">Detalhe por campanha. Arraste a borda das colunas pra ver o nome completo; use os checkboxes pra escolher quais colunas aparecem.</div>
     <div class="col-toggle" id="col-toggle"></div>
     <div class="top-scroll" id="top-scroll"><div id="top-scroll-inner"></div></div>
@@ -1452,7 +1455,51 @@ function initEvents() {{
   }});
 }}
 
-document.addEventListener('DOMContentLoaded',()=>{{ initEvents(); renderAll(); }});
+// ---- Exportar anuncios: dados em nivel de anuncio num arquivo a parte (export_ads.tsv),
+// servido pelo mesmo host (Vercel) e carregado SO ao clicar. Filtra igual a tela. ----
+let _adRows=null;
+function exportRowMatch(r){{
+  if (state.periodo==='custom') {{ if (r.dt<state.dateStart||r.dt>state.dateEnd) return false; }}
+  else if (state.periodo!=='all') {{ if (r.dt.slice(5,7)!==state.periodo) return false; }}
+  if (state.plataforma.length && !state.plataforma.includes(r.pl)) return false;
+  if (state.conta.length     && !state.conta.includes(r.ct)) return false;
+  if (state.publico.length   && !state.publico.includes(r.pb)) return false;
+  if (state.formato.length   && !state.formato.includes(r.fm)) return false;
+  {tax_filter_js}
+  if (state.campSearch && !r.ca.toLowerCase().includes(state.campSearch.toLowerCase())) return false;
+  if (state.cjSearch && !(r.cj||'').toLowerCase().includes(state.cjSearch.toLowerCase())) return false;
+  return true;
+}}
+function parseTSV(txt){{
+  const lines=txt.split('\\n').filter(l=>l.length);
+  const hdr=lines[0].split('\\t');
+  return lines.slice(1).map(line=>{{ const c=line.split('\\t'), o={{}}; hdr.forEach((h,i)=>o[h]=c[i]); return o; }});
+}}
+function csvCell(v){{ v=(v==null?'':String(v)); return /[;"\\n]/.test(v)?'"'+v.replace(/"/g,'""')+'"':v; }}
+async function exportAds(){{
+  const btn=document.getElementById('btn-export-ads'); const lbl='Exportar anúncios (CSV)';
+  try{{
+    btn.disabled=true; btn.textContent='Carregando...';
+    if(!_adRows){{ const resp=await fetch('export_ads.tsv'); if(!resp.ok) throw new Error('HTTP '+resp.status); _adRows=parseTSV(await resp.text()); }}
+    const rows=_adRows.filter(exportRowMatch);
+    if(!rows.length){{ alert('Nenhum anúncio no filtro atual.'); btn.textContent=lbl; btn.disabled=false; return; }}
+    const head=['data','plataforma','ad_id','campanha','conjunto','anúncio','investimento','leads gerados'];
+    const out=[head.join(';')];
+    for(const r of rows){{
+      const iv=Number(r.iv||0).toLocaleString('pt-BR',{{minimumFractionDigits:2,maximumFractionDigits:2}});
+      const lp=Number(r.lp||0).toLocaleString('pt-BR',{{maximumFractionDigits:2}});
+      out.push([r.dt,r.pl,r.ad_id,r.ca,r.cj,r.ad,iv,lp].map(csvCell).join(';'));
+    }}
+    const blob=new Blob(['\\ufeff'+out.join('\\r\\n')],{{type:'text/csv;charset=utf-8;'}});
+    const url=URL.createObjectURL(blob), a=document.createElement('a');
+    const per=(state.periodo==='custom')?(state.dateStart+'_a_'+state.dateEnd):state.periodo;
+    a.href=url; a.download='anuncios_'+per+'.csv'; a.click(); URL.revokeObjectURL(url);
+    btn.textContent=lbl; btn.disabled=false;
+  }}catch(e){{ alert('Falha ao exportar: '+e.message); btn.textContent=lbl; btn.disabled=false; }}
+}}
+
+document.addEventListener('DOMContentLoaded',()=>{{ initEvents(); renderAll();
+  document.getElementById('btn-export-ads').addEventListener('click',exportAds); }});
 </script>
 </body>
 </html>"""
@@ -1464,3 +1511,41 @@ size_mb = os.path.getsize(HTML_OUT) / 1024 / 1024
 print(f"\nHTML gerado: {HTML_OUT}")
 print(f"Tamanho: {size_mb:.2f} MB")
 print("Concluido!")
+
+
+# ---------------------------------------------------------------------------
+# Arquivo de EXPORT em nivel de anuncio (export_ads.tsv), ao lado do index.html.
+# Servido pelo Vercel e carregado sob demanda pelo botao. Publico/Formato/taxonomia
+# derivados AQUI com o MESMO codigo do dash, pra o export respeitar os mesmos filtros.
+ADS_DETAIL = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'data', 'ads_detail.csv')
+EXPORT_TSV = os.path.join(os.path.dirname(HTML_OUT), 'export_ads.tsv')
+EXPORT_COLS = ['dt','pl','ct','ca','cj','ad','ad_id','pb','fm'] + [k for k,*_ in TAX_FIELDS] + ['iv','lp']
+
+
+def _clean_tsv(v):
+    return str(v).replace('\t', ' ').replace('\r', ' ').replace('\n', ' ').strip()
+
+
+if os.path.exists(ADS_DETAIL):
+    ads = pd.read_csv(ADS_DETAIL, dtype={'ad_id': str}).fillna({'ad': '', 'ad_id': '', 'cj': ''})
+    ads['ca'] = ads['ca'].astype(str).map(lambda c: DEPARA.get(c, c))  # mesma unificacao do dash
+    ads['pb'] = ads['ca'].map(derive_publico)
+    ads['fm'] = ads.apply(lambda r: derive_formato(r['ca'], r['pl']), axis=1)
+    soc = ads['ct'].astype(str).str.strip() == 'Hapvida - Social'
+    ads.loc[soc, 'pb'] = 'Social'; ads.loc[soc, 'fm'] = 'Youtube'
+    ads.loc[ads['ct'].astype(str).str.strip() == 'Odonto', 'pb'] = 'Odonto'
+    ppo = ads['ca'].astype(str).str.upper().str.contains('PPO')
+    ads.loc[ppo, 'pb'] = 'PPO'
+    ads = ads[(ads['pb'] != '?') & (ads['fm'] != '?')].copy()  # mesma exclusao do dash
+    for key, _lbl, idx, empty in TAX_FIELDS:
+        ads[key] = ads['ca'].map(lambda c, i=idx, e=empty: tax_value(c, i) or e)
+    ads['iv'] = ads['iv'].astype(float).round(2)
+    ads['lp'] = ads['lp'].astype(float).round(2)
+    with open(EXPORT_TSV, 'w', encoding='utf-8', newline='') as f:
+        f.write('\t'.join(EXPORT_COLS) + '\n')
+        for _, r in ads.iterrows():
+            f.write('\t'.join(_clean_tsv(r[c]) for c in EXPORT_COLS) + '\n')
+    ek = os.path.getsize(EXPORT_TSV) / 1024 / 1024
+    print(f"export_ads.tsv: {len(ads)} linhas | {ek:.2f} MB | invest R$ {ads['iv'].sum():,.2f}")
+else:
+    print(f"AVISO: {ADS_DETAIL} nao encontrado; export_ads.tsv NAO gerado (rode fetch_ads_detail.py).")

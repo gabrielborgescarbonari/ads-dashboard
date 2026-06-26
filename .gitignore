@@ -16,4 +16,5 @@ scripts/*
 !scripts/dash_sync.py
 !scripts/dash_fetch.py
 !scripts/dash_derive.py
+!scripts/fetch_ads_detail.py
 !scripts/gerar_refresh_token.py
