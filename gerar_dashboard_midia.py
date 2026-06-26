@@ -1483,12 +1483,12 @@ async function exportAds(){{
     if(!_adRows){{ const resp=await fetch('export_ads.tsv'); if(!resp.ok) throw new Error('HTTP '+resp.status); _adRows=parseTSV(await resp.text()); }}
     const rows=_adRows.filter(exportRowMatch);
     if(!rows.length){{ alert('Nenhum anúncio no filtro atual.'); btn.textContent=lbl; btn.disabled=false; return; }}
-    const head=['data','plataforma','ad_id','campanha','conjunto','anúncio','investimento','leads gerados'];
+    const head=['data','plataforma','ad_id','campanha','conjunto','anúncio','público','formato','objetivo','investimento','leads gerados'];
     const out=[head.join(';')];
     for(const r of rows){{
       const iv=Number(r.iv||0).toLocaleString('pt-BR',{{minimumFractionDigits:2,maximumFractionDigits:2}});
       const lp=Number(r.lp||0).toLocaleString('pt-BR',{{maximumFractionDigits:2}});
-      out.push([r.dt,r.pl,r.ad_id,r.ca,r.cj,r.ad,iv,lp].map(csvCell).join(';'));
+      out.push([r.dt,r.pl,r.ad_id,r.ca,r.cj,r.ad,r.pb,r.fm,r.t_obj,iv,lp].map(csvCell).join(';'));
     }}
     const blob=new Blob(['\\ufeff'+out.join('\\r\\n')],{{type:'text/csv;charset=utf-8;'}});
     const url=URL.createObjectURL(blob), a=document.createElement('a');
